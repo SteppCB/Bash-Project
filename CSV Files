@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Function to display help
+function display_help() {
+    echo "CSV Processor Script"
+    echo "Usage: $0 [options] <csv_file>"
+    echo ""
+    echo "Options:"
+    echo "  -f <column_name>    Filter rows based on a specific column name."
+    echo "  -s <column_name>    Sort the CSV file by a specific column."
+    echo "  -h                  Display this help message."
+    exit 0
+}
+
+# Function to handle invalid input
+function invalid_input() {
+    echo "Invalid input: $1"
+    echo "Use -h for help."
+    exit 1
+}
+
+# Ensure the script is run with at least one argument
+if [ $# -eq 0 ]; then
+    invalid_input "No arguments provided"
+fi
+
+# Process command-line arguments
+while getopts "f:s:h" opt; do
+    case "$opt" in
+        f) filter_column="$OPTARG" ;;
+        s) sort_column="$OPTARG" ;;
+        h) display_help ;;
+        *) invalid_input "Unknown option: $opt" ;;
+    esac
+done
+
+# Shift arguments to leave the remaining positional parameters (CSV file)
+shift $((OPTIND - 1))
+
+# Check if a CSV file is provided
+csv_file="$1"
+if [ -z "$csv_file" ]; then
+    invalid_input "No CSV file provided"
+fi
+
+# Check if the file exists
+if [ ! -f "$csv_file" ]; then
+    invalid_input "CSV file does not exist"
+fi
+
+# Process the CSV based on the provided options
+if [ ! -z "$filter_column" ]; then
+    # Filter rows by a specific column using a regular expression
+    echo "Filtering rows based on column: $filter_column"
+    header=$(head -n 1 "$csv_file")
+    col_num=$(echo "$header" | tr ',' '\n' | grep -n "^$filter_column$" | cut -d: -f1)
+
+    if [ -z "$col_num" ]; then
+        invalid_input "Column '$filter_column' not found in the CSV file"
+    fi
+
+    awk -F, -v col="$col_num" '$col ~ /^[a-zA-Z0-9_]*$/' "$csv_file"
+
+elif [ ! -z "$sort_column" ]; then
+    # Sort the CSV file by a specific column
+    echo "Sorting the CSV file by column: $sort_column"
+    header=$(head -n 1 "$csv_file")
+    col_num=$(echo "$header" | tr ',' '\n' | grep -n "^$sort_column$" | cut -d: -f1)
+
+    if [ -z "$col_num" ]; then
+        invalid_input "Column '$sort_column' not found in the CSV file"
+    fi
+
+    (head -n 1 "$csv_file" && tail -n +2 "$csv_file" | sort -t, -k"$col_num","$col_num") > sorted_"$csv_file"
+    echo "Sorted CSV saved as sorted_$csv_file"
+else
+    invalid_input "No operation provided. Use -h for help."
+fi
